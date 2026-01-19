@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "181281971622",
+    "project_id": "ecowatt-energy-tracker",
+    "storage_bucket": "ecowatt-energy-tracker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:181281971622:android:dc7df27fb14fabb8118367",
+        "android_client_info": {
+          "package_name": "com.example.eco_watt"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCII_AWt_s2ntHyL8-JvukUNtD0IFtbXbo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
