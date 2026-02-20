@@ -40,9 +40,119 @@ class _MeterSetupScreenState extends State<MeterSetupScreen> {
     'Farm',
     'Other',
   ];
+
+  bool _validateConsumedUnits(String units) {
+    if (units.isEmpty) {
+      setState(() => _consumedUnitsError = "Consumption is required");
+      return false;
+    }
+
+    final unitsValue = double.tryParse(units);
+    if (unitsValue == null) {
+      setState(() => _consumedUnitsError = "Enter a Valid Number");
+      return false;
+    }
+
+    if (unitsValue < 0) {
+      setState(() => _consumedUnitsError = "Cannot be negative");
+      return false;
+    }
+
+    if (unitsValue > 100000) {
+      setState(() => _consumedUnitsError = "Value seems too high");
+      return false;
+    }
+
+    setState(() => _consumedUnitsError = null);
+    return true;
+  }
+
+  bool _validateConnectedLoad(String load) {
+    if (load.isEmpty) {
+      setState(() => _connectedLoadError = "Load is required");
+      return false;
+    }
+
+    final loadValue = double.tryParse(load);
+    if (loadValue == null) {
+      setState(() => _connectedLoadError = "Enter a Valid Number");
+      return false;
+    }
+
+    if (loadValue < 0) {
+      setState(() => _connectedLoadError = "Must be greater than 0");
+      return false;
+    }
+
+    if (loadValue > 50000) {
+      setState(() => _connectedLoadError = "Value seems too high");
+      return false;
+    }
+
+    setState(() => _connectedLoadError = null);
+    return true;
+  }
+
   Future<void> _submitMeterSetup() async {
     final consumedUnits = _consumedUnitsController.text.trim();
     final connectedLoad = _connectedLoadController.text.trim();
+
+    bool isConsumedUnitsValid = _validateConsumedUnits(consumedUnits);
+    bool isConnectedLoadValid = _validateConnectedLoad(connectedLoad);
+
+    if (_selectedTariff == null || _selectedPurpose == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please select Tariff and Purpose"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!isConsumedUnitsValid || !isConnectedLoadValid) {
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("user not logged in")));
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'tariff': _selectedTariff,
+        'purpose': _selectedPurpose,
+        'billingCycle': _billingCycle,
+        'consumedUnits': double.parse(consumedUnits),
+        'connectedLoad': double.parse(connectedLoad),
+        'phase': _phase,
+        'meterSetupCompleted': true,
+      }, SetOptions(merge: true));
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: ${e.toString()}"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -327,15 +437,76 @@ class _MeterSetupScreenState extends State<MeterSetupScreen> {
       ),
     );
   }
-}
 
-Widget _buildRadioOption({
-  required String title,
-  required String value,
-  required String groupValue,
-  required ValueChanged<String?> onChanged,
-}) {
-  final isSelected = value == groupValue;
+  Widget _buildRadioOption({
+    required String title,
+    required String value,
+    required String groupValue,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final isSelected = value == groupValue;
 
-  return GestureDetector(onTap: () => onChanged(value));
+    return GestureDetector(
+      onTap: () => onChanged(value),
+
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary.withValues(alpha: 0.1)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? AppColors.primary : Colors.grey.shade400,
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? Center(
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  color: isSelected ? AppColors.primary : Colors.black87,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _consumedUnitsController.dispose();
+    _connectedLoadController.dispose();
+    super.dispose();
+  }
 }

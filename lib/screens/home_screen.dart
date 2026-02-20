@@ -5,17 +5,6 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold();
+    return Scaffold(body: Text("Home page"));
   }
 }
-
-// Future<void> _logout() async {
-//   await FirebaseAuth.instance.signOut();
-
-//   if (!mounted) return;
-
-//   Navigator.pushReplacement(
-//     context,
-//     MaterialPageRoute(builder: (context) => const AuthScreen()),
-//   );
-// }
