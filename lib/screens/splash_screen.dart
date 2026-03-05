@@ -1,3 +1,4 @@
+import 'package:eco_watt/screens/appliances_screen.dart';
 import 'package:eco_watt/screens/auth_screen.dart';
 import 'package:eco_watt/screens/home_screen.dart';
 import 'package:eco_watt/screens/meter_setup_screen.dart';
@@ -64,7 +65,13 @@ class _SplashScreenState extends State<SplashScreen> {
         );
         return;
       }
-
+      if (userData['appliancesSetupScreen'] != true) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const AppliancesScreen()),
+        );
+        return;
+      }
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),

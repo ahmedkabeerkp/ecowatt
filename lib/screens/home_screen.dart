@@ -18,11 +18,11 @@ class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = const [
-    _DashboardTab(),
-    _UsageTab(),
-    _SavingsTab(),
-    _ProfileTab(),
+  final List<Widget> _pages = [
+    const _DashboardTab(),
+    const _UsageTab(),
+    const _SavingsTab(),
+    const _ProfileTab(),
   ];
   @override
   Widget build(BuildContext context) {
@@ -296,6 +296,10 @@ class __DashboardTabState extends State<_DashboardTab> {
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
+    if (uid == null) {
+      return const Center(child: Text('Not logged in'));
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -304,37 +308,43 @@ class __DashboardTabState extends State<_DashboardTab> {
           _StatusCard(isPeak: _isPeakHours),
           const SizedBox(height: 16),
 
-          if (uid != null)
-            StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(uid)
-                  .snapshots(),
-              builder: (context, snap) {
-                double savings = 0;
-                if (snap.hasData && snap.data!.exists) {
-                  final data = snap.data!.data() as Map<String, dynamic>;
-                  savings = (data['totalSavings'] as num?)?.toDouble() ?? 0;
-                }
+          StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .snapshots(),
+            builder: (context, snap) {
+              if (snap.hasError) {
+                return _HeroSavingsCard(savings: 0);
+              }
+              double savings = 0;
+              if (snap.hasData && snap.data!.exists) {
+                final data = snap.data!.data() as Map<String, dynamic>? ?? {};
+                savings = (data['totalSavings'] as num?)?.toDouble() ?? 0;
+              }
 
-                return _HeroSavingsCard(savings: savings);
-              },
-            ),
+              return _HeroSavingsCard(savings: savings);
+            },
+          ),
           const SizedBox(height: 16),
-          if (uid != null)
-            StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(uid)
-                  .collection('usageLogs')
-                  .orderBy('date', descending: false)
-                  .limit(50)
-                  .snapshots(),
-              builder: (context, snap) {
-                final dailyData = _aggregateDailyUsage(snap.data?.docs ?? []);
-                return _WeeklyChartCard(dailyData: dailyData);
-              },
-            ),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .collection('usageLogs')
+                .orderBy('date', descending: false)
+                .limit(50)
+                .snapshots(),
+            builder: (context, snap) {
+              if (snap.hasError) {
+                return _WeeklyChartCard(dailyData: const {});
+              }
+              final dailyData = _aggregateDailyUsage(
+                snap.hasData ? snap.data!.docs : [],
+              );
+              return _WeeklyChartCard(dailyData: dailyData);
+            },
+          ),
           const SizedBox(height: 16),
 
           Row(
@@ -371,12 +381,16 @@ class __DashboardTabState extends State<_DashboardTab> {
   Map<int, double> _aggregateDailyUsage(List<QueryDocumentSnapshot> docs) {
     final Map<int, double> totals = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0};
     for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final Timestamp? ts = data['date'] as Timestamp?;
-      final double units = (data['units'] as num?)?.toDouble() ?? 0;
-      if (ts != null) {
-        final weekday = ts.toDate().weekday;
-        totals[weekday] = (totals[weekday] ?? 0) + units;
+      try {
+        final data = doc.data() as Map<String, dynamic>;
+        final Timestamp? ts = data['date'] as Timestamp?;
+        final double units = (data['units'] as num?)?.toDouble() ?? 0;
+        if (ts != null) {
+          final weekday = ts.toDate().weekday;
+          totals[weekday] = (totals[weekday] ?? 0) + units;
+        }
+      } catch (_) {
+        //
       }
     }
     return totals;
@@ -546,7 +560,7 @@ class _WeeklyChartCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       color: Colors.white,
       child: Padding(
-        padding: const EdgeInsetsGeometry.all(20),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -740,7 +754,7 @@ class _QuickActionCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: const EdgeInsetsGeometry.all(16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -812,9 +826,9 @@ class _ProfileTab extends StatelessWidget {
           ? FirebaseFirestore.instance.collection('users').doc(uid).snapshots()
           : const Stream.empty(),
       builder: (context, snap) {
-        final data = snap.hasData && snap.data!.exists
-            ? snap.data!.data() as Map
-            : {};
+        final data = (snap.hasData && snap.data!.exists)
+            ? (snap.data!.data() as Map<String, dynamic>? ?? {})
+            : <String, dynamic>{};
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(

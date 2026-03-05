@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:eco_watt/screens/appliances_screen.dart';
 import 'package:eco_watt/screens/home_screen.dart';
 import 'package:eco_watt/screens/meter_setup_screen.dart';
 import 'package:eco_watt/screens/profile_completion.dart';
@@ -156,7 +157,13 @@ class _AuthScreenState extends State<AuthScreen> {
         );
         return;
       }
-
+      if (userData['appliancesSetupCompleted'] != true) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const AppliancesScreen()),
+        );
+        return;
+      }
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),

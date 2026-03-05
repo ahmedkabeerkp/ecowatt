@@ -1,4 +1,5 @@
 import 'package:eco_watt/constants/colors.dart';
+import 'package:eco_watt/screens/appliances_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eco_watt/screens/home_screen.dart';
@@ -140,7 +141,9 @@ class _MeterSetupScreenState extends State<MeterSetupScreen> {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        MaterialPageRoute(
+          builder: (context) => const AppliancesScreen(),
+        ), //changed after
       );
     } catch (e) {
       if (!mounted) return;
