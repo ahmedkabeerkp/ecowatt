@@ -1,5 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eco_watt/constants/colors.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:eco_watt/models/appliance_item.dart';
 import 'package:eco_watt/screens/schedule_appliance_screen.dart';
 
@@ -16,6 +19,9 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
   String _selectedCategory = 'All';
   String _searchQuery = '';
 
+  // Loading state while fetching existing data from Firestore
+  bool _loadingExisting = true;
+
   static const List<String> _categories = [
     'All',
     'Cooling',
@@ -25,6 +31,60 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
     'Entertainment',
     'Others',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingData();
+  }
+
+  // ── Load existing schedules from Firestore and pre-fill list ──
+  Future<void> _loadExistingData() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        setState(() => _loadingExisting = false);
+        return;
+      }
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('applianceSchedules')
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        setState(() => _loadingExisting = false);
+        return;
+      }
+
+      // Build a map: applianceName → {wattage, quantity}
+      final Map<String, Map<String, dynamic>> existing = {};
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        existing[doc.id] = {
+          'wattage': (data['wattage'] as num?)?.toInt(),
+          'quantity': (data['quantity'] as num?)?.toInt() ?? 1,
+        };
+      }
+
+      // Pre-fill matching appliances
+      setState(() {
+        for (final appliance in _allAppliances) {
+          final saved = existing[appliance.name];
+          if (saved != null) {
+            appliance.quantity = saved['quantity'] as int;
+            if (saved['wattage'] != null) {
+              appliance.wattage = saved['wattage'] as int;
+            }
+          }
+        }
+        _loadingExisting = false;
+      });
+    } catch (_) {
+      setState(() => _loadingExisting = false);
+    }
+  }
 
   List<ApplianceItem> get _filtered {
     return _allAppliances.where((a) {
@@ -43,6 +103,202 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
 
   void _decrement(ApplianceItem item) {
     if (item.quantity > 0) setState(() => item.quantity--);
+  }
+
+  //Edit Watts Bottom Sheet ─────────────────────────────────
+  void _showEditWatts(ApplianceItem item) {
+    final controller = TextEditingController(text: item.wattage.toString());
+    double sliderValue = item.wattage.clamp(0, 5000).toDouble();
+    String? error;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.electric_bolt_rounded,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Edit Wattage — ${item.name}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Set the actual wattage of your appliance (0 – 5000 W)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: controller,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(4),
+                      ],
+                      onChanged: (v) {
+                        final parsed = int.tryParse(v);
+                        if (parsed != null) {
+                          setSheetState(() {
+                            sliderValue = parsed.clamp(0, 5000).toDouble();
+                            error = null;
+                          });
+                        }
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Watts',
+                        suffixText: 'W',
+                        errorText: error,
+                        filled: true,
+                        fillColor: const Color(0xFFF5F5F5),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: AppColors.primary,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: AppColors.primary,
+                        inactiveTrackColor: Colors.grey.shade200,
+                        thumbColor: AppColors.primary,
+                        overlayColor: AppColors.primary.withValues(alpha: 0.15),
+                        trackHeight: 4,
+                      ),
+                      child: Slider(
+                        value: sliderValue,
+                        min: 0,
+                        max: 5000,
+                        divisions: 100,
+                        label: '${sliderValue.toInt()} W',
+                        onChanged: (v) {
+                          setSheetState(() {
+                            sliderValue = v;
+                            controller.text = v.toInt().toString();
+                            controller.selection = TextSelection.collapsed(
+                              offset: controller.text.length,
+                            );
+                            error = null;
+                          });
+                        },
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '0 W',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade400,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            '5000 W',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade400,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          final parsed = int.tryParse(controller.text.trim());
+                          if (parsed == null || parsed < 0 || parsed > 5000) {
+                            setSheetState(
+                              () => error = 'Enter a value between 0 and 5000',
+                            );
+                            return;
+                          }
+                          setState(() => item.wattage = parsed);
+                          Navigator.pop(ctx);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          'Save Wattage',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _onContinue() {
@@ -74,6 +330,8 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
         return Icons.water_rounded;
       case 'heater':
         return Icons.local_fire_department_rounded;
+      case 'waterheater':
+        return Icons.water_damage_rounded;
       case 'iron':
         return Icons.iron_rounded;
       case 'fridge':
@@ -138,7 +396,35 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Show loader while fetching existing Firestore data
+    if (_loadingExisting) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF0F4F3),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: true,
+          leading: IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          ),
+          title: const Text(
+            'My Appliances',
+            style: TextStyle(
+              color: Colors.black87,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+        ),
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+
     final filtered = _filtered;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F3),
       appBar: AppBar(
@@ -157,15 +443,35 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
             fontSize: 18,
           ),
         ),
+        // Show "Edit Mode" badge if user already has saved data
+        actions: [
+          if (_allAppliances.any((a) => a.quantity > 0))
+            Container(
+              margin: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                'Edit Mode',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+        ],
       ),
       body: Column(
         children: [
           AppProgressBar(step: 1),
-
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
+                // Search bar
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -181,7 +487,7 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
                     controller: _searchController,
                     onChanged: (v) => setState(() => _searchQuery = v),
                     decoration: InputDecoration(
-                      hintText: 'Seach appliances...',
+                      hintText: 'Search appliances...',
                       hintStyle: const TextStyle(color: Colors.grey),
                       prefixIcon: const Icon(Icons.search, color: Colors.grey),
                       border: InputBorder.none,
@@ -194,6 +500,7 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
                 ),
                 const SizedBox(height: 14),
 
+                // Category chips
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -249,7 +556,8 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                //Appliance Cards----
+
+                // Appliance cards
                 if (filtered.isEmpty)
                   const Padding(
                     padding: EdgeInsets.only(top: 40),
@@ -267,6 +575,7 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
                       iconData: _iconFor(item.icon),
                       onIncrement: () => _increment(item),
                       onDecrement: () => _decrement(item),
+                      onEditWatts: () => _showEditWatts(item),
                     ),
                   ),
               ],
@@ -274,7 +583,6 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
           ),
         ],
       ),
-
       bottomSheet: Container(
         color: Colors.transparent,
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -309,11 +617,12 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
   }
 }
 
-/*Progress Bar _________________________________________________________
-_______________________________________________________________________*/
+// ─────────────────────────────────────────────────────────────────
+// Progress Bar (public — imported by ScheduleApplianceScreen)
+// ─────────────────────────────────────────────────────────────────
 class AppProgressBar extends StatelessWidget {
   final int step;
-  const AppProgressBar({required this.step});
+  const AppProgressBar({super.key, required this.step});
 
   @override
   Widget build(BuildContext context) {
@@ -343,25 +652,29 @@ class AppProgressBar extends StatelessWidget {
   }
 }
 
-//Appliance Card____________________________________________________________
+// ─────────────────────────────────────────────────────────────────
+// Appliance Card
+// ─────────────────────────────────────────────────────────────────
 class _ApplianceCard extends StatelessWidget {
   final ApplianceItem item;
   final IconData iconData;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
+  final VoidCallback onEditWatts;
 
   const _ApplianceCard({
     required this.item,
     required this.iconData,
     required this.onIncrement,
     required this.onDecrement,
+    required this.onEditWatts,
   });
 
   @override
   Widget build(BuildContext context) {
     final isSelected = item.quantity > 0;
     return AnimatedContainer(
-      duration: const Duration(microseconds: 200),
+      duration: const Duration(milliseconds: 200),
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -398,7 +711,6 @@ class _ApplianceCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 14),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -412,27 +724,66 @@ class _ApplianceCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.electric_bolt_rounded,
-                        size: 13,
-                        color: isSelected ? AppColors.primary : Colors.grey,
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        '${item.wattageLabel} Watts',
-                        style: TextStyle(
-                          fontSize: 12,
+                  GestureDetector(
+                    onTap: onEditWatts,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.electric_bolt_rounded,
+                          size: 13,
                           color: isSelected ? AppColors.primary : Colors.grey,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 3),
+                        Text(
+                          '${item.wattageLabel} W',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isSelected ? AppColors.primary : Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.primary.withValues(alpha: 0.10)
+                                : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.edit_rounded,
+                                size: 10,
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : Colors.grey.shade500,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                'Edit',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: isSelected
+                                      ? AppColors.primary
+                                      : Colors.grey.shade500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-
             _Stepper(
               value: item.quantity,
               onIncrement: onIncrement,
@@ -445,11 +796,14 @@ class _ApplianceCard extends StatelessWidget {
   }
 }
 
-//Stepper__________________________________________________________________
+// ─────────────────────────────────────────────────────────────────
+// Stepper
+// ─────────────────────────────────────────────────────────────────
 class _Stepper extends StatelessWidget {
   final int value;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
+
   const _Stepper({
     required this.onIncrement,
     required this.onDecrement,
