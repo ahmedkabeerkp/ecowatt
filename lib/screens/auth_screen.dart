@@ -156,20 +156,19 @@ class _AuthScreenState extends State<AuthScreen> {
     });
 
     try {
-      final GoogleSignIn googleSignIn = GoogleSignIn();
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      final googleSignIn = GoogleSignIn.instance;
 
-      // User cancelled the picker
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
+      await googleSignIn.initialize();
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      final GoogleSignInAccount googleUser = await googleSignIn.authenticate();
+
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+
+      final authorization = await googleUser.authorizationClient
+          .authorizationForScopes(['email']);
 
       final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
+        accessToken: authorization?.accessToken,
         idToken: googleAuth.idToken,
       );
 
@@ -387,6 +386,33 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  // ── Change Email — deletes unverified account, returns to signup ──
+  Future<void> _changeEmail() async {
+    try {
+      // Delete the unverified Firebase Auth user and their Firestore doc
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .delete();
+        await user.delete();
+      }
+    } catch (_) {
+      // Non-fatal — sign out regardless
+      await FirebaseAuth.instance.signOut();
+    }
+    if (!mounted) return;
+    setState(() {
+      _showVerificationBanner = false;
+      _isLogin = false; // return to Sign Up tab
+      _emailController.clear();
+      _passwordController.clear();
+      _nameController.clear();
+      _errorMessage = null;
+    });
+  }
+
   // ── Continue after verification (user taps "I've verified") ───
   Future<void> _continueAfterVerification() async {
     setState(() => _isLoading = true);
@@ -511,6 +537,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     email: _emailController.text.trim(),
                     onResend: _resendVerification,
                     onContinue: _continueAfterVerification,
+                    onChangeEmail: _changeEmail,
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -604,6 +631,9 @@ class _AuthScreenState extends State<AuthScreen> {
               onTap: () => setState(() {
                 _isLogin = false;
                 _errorMessage = null;
+                _emailController.clear();
+                _passwordController.clear();
+                _nameController.clear();
               }),
               child: Container(
                 decoration: BoxDecoration(
@@ -626,6 +656,9 @@ class _AuthScreenState extends State<AuthScreen> {
               onTap: () => setState(() {
                 _isLogin = true;
                 _errorMessage = null;
+                _emailController.clear();
+                _passwordController.clear();
+                _nameController.clear();
               }),
               child: Container(
                 decoration: BoxDecoration(
@@ -844,6 +877,9 @@ class _AuthScreenState extends State<AuthScreen> {
           onTap: () => setState(() {
             _isLogin = !_isLogin;
             _errorMessage = null;
+            _emailController.clear();
+            _passwordController.clear();
+            _nameController.clear();
           }),
           child: Text(
             _isLogin ? 'Sign Up' : 'Login',
@@ -866,11 +902,13 @@ class _VerificationBanner extends StatelessWidget {
   final String email;
   final VoidCallback onResend;
   final VoidCallback onContinue;
+  final VoidCallback onChangeEmail;
 
   const _VerificationBanner({
     required this.email,
     required this.onResend,
     required this.onContinue,
+    required this.onChangeEmail,
   });
 
   @override
@@ -955,6 +993,20 @@ class _VerificationBanner extends StatelessWidget {
                 color: AppColors.primary,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          // After the Resend GestureDetector:
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: onChangeEmail,
+            child: Text(
+              'Wrong email? Change it',
+              style: TextStyle(
+                color: Colors.grey.shade500,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                decoration: TextDecoration.underline,
               ),
             ),
           ),

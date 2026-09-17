@@ -79,7 +79,7 @@ class NotificationService {
     );
 
     await _plugin.initialize(
-      settings,
+      settings: settings,
       onDidReceiveNotificationResponse: (r) => handleNotificationAction(r),
       onDidReceiveBackgroundNotificationResponse:
           onBackgroundNotificationAction,
@@ -250,7 +250,7 @@ class NotificationService {
         dateKey: todayKey,
       );
     } else {
-      await _plugin.cancel(_peakReminderId);
+      await _plugin.cancel(id: _peakReminderId);
     }
 
     if (morningEnabled) {
@@ -260,7 +260,7 @@ class NotificationService {
         dateKey: todayKey,
       );
     } else {
-      await _plugin.cancel(_morningTipId);
+      await _plugin.cancel(id: _morningTipId);
     }
   }
 
@@ -280,7 +280,7 @@ class NotificationService {
       }).toList();
 
       if (eligible.isEmpty) {
-        await _plugin.cancel(_peakReminderId);
+        await _plugin.cancel(id: _peakReminderId);
         return;
       }
 
@@ -326,14 +326,12 @@ class NotificationService {
       }
 
       await _plugin.zonedSchedule(
-        _peakReminderId,
-        title,
-        body,
-        scheduled,
-        _buildActionDetails(payload),
+        id: _peakReminderId,
+        title: title,
+        body: body,
+        scheduledDate: scheduled,
+        notificationDetails: _buildActionDetails(payload),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
       );
     } catch (e) {
       debugPrint('NotificationService._schedulePeakReminder error: $e');
@@ -358,7 +356,7 @@ class NotificationService {
       }).toList();
 
       if (eligible.isEmpty) {
-        await _plugin.cancel(_morningTipId);
+        await _plugin.cancel(id: _morningTipId);
         return;
       }
 
@@ -399,14 +397,12 @@ class NotificationService {
       }
 
       await _plugin.zonedSchedule(
-        _morningTipId,
-        '🌅 Good Morning — Energy Tip',
-        'Great time to run your $name before peak hours begin at 6 PM!',
-        scheduled,
-        _buildActionDetails(payload),
+        id: _morningTipId,
+        title: '🌅 Good Morning — Energy Tip',
+        body: 'Great time to run your $name before peak hours begin at 6 PM!',
+        scheduledDate: scheduled,
+        notificationDetails: _buildActionDetails(payload),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
       );
     } catch (e) {
       debugPrint('NotificationService._scheduleMorningTip error: $e');
@@ -420,10 +416,10 @@ class NotificationService {
   }) async {
     try {
       await _plugin.show(
-        _slabAlertId,
-        '⚠️ Approaching $nextSlabAt unit slab',
-        'Only $unitsToNextSlab units left before your rate jumps.',
-        _buildSimpleDetails(),
+        id: _slabAlertId,
+        title: '⚠️ Approaching $nextSlabAt unit slab',
+        body: 'Only $unitsToNextSlab units left before your rate jumps.',
+        notificationDetails: _buildSimpleDetails(),
       );
     } catch (e) {
       debugPrint('NotificationService.showSlabAlert error: $e');
@@ -432,8 +428,9 @@ class NotificationService {
 
   // ── Cancel helpers ──────────────────────────────────────────────────────────
   static Future<void> cancelPeakWarning() async =>
-      _plugin.cancel(_peakReminderId);
-  static Future<void> cancelMorningTip() async => _plugin.cancel(_morningTipId);
+      _plugin.cancel(id: _peakReminderId);
+  static Future<void> cancelMorningTip() async =>
+      _plugin.cancel(id: _morningTipId);
   static Future<void> cancelAll() async => _plugin.cancelAll();
 
   // ── NotificationDetails with Done / Ignore action buttons ──────────────────

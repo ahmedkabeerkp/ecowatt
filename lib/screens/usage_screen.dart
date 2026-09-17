@@ -379,6 +379,19 @@ class _UsageTabState extends State<UsageTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── iOS-style large title ─────────────────────────────
+              const Padding(
+                padding: EdgeInsets.only(bottom: 20),
+                child: Text(
+                  'Insights',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1A2E20),
+                  ),
+                ),
+              ),
+
               // ── AI Insights Card ─────────────────────────────────
               _AiInsightCard(
                 insight: _aiInsight,

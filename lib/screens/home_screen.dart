@@ -57,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
     const _DashboardTab(),
     const UsageTab(),
     const SavingsTab(),
-    const _ProfileTab(),
+    const SettingsScreen(),
   ];
 
   // ── NEW: Freeze today's appliance config once per session ─────
@@ -69,6 +69,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (uid != null) {
       DailySnapshotService.ensureTodaySnapshot(uid);
       DailySnapshotService.backfillMissingDays(uid);
+      DailySnapshotService.checkAndRollBillingCycle(uid); // ← NEW
+
       _scheduleNotifications(uid);
     }
   }
@@ -109,87 +111,75 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: const Color(0xFFF0F4F3),
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        elevation: 0,
-        titleSpacing: 16,
-        title: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.electric_bolt_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'EcoWatt',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          // ── Profile avatar → opens ProfileScreen ─────────────
-          StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseAuth.instance.currentUser != null
-                ? FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(FirebaseAuth.instance.currentUser!.uid)
-                      .snapshots()
-                : const Stream.empty(),
-            builder: (context, snap) {
-              final data = (snap.hasData && snap.data!.exists)
-                  ? (snap.data!.data() as Map<String, dynamic>? ?? {})
-                  : <String, dynamic>{};
-              final name = (data['name'] as String?) ?? '';
-              final initial = name.isNotEmpty ? name[0].toUpperCase() : 'U';
-              return GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
+      appBar: _selectedIndex == 0
+          ? AppBar(
+              backgroundColor: AppColors.primary,
+              elevation: 0,
+              titleSpacing: 16,
+              title: const Text(
+                'EcoWatt',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
                 ),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  margin: const EdgeInsets.only(right: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.25),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      initial,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+              ),
+              actions: [
+                // ── Profile avatar → opens ProfileScreen ─────────────
+                StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseAuth.instance.currentUser != null
+                      ? FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(FirebaseAuth.instance.currentUser!.uid)
+                            .snapshots()
+                      : const Stream.empty(),
+                  builder: (context, snap) {
+                    final data = (snap.hasData && snap.data!.exists)
+                        ? (snap.data!.data() as Map<String, dynamic>? ?? {})
+                        : <String, dynamic>{};
+                    final name = (data['name'] as String?) ?? '';
+                    final initial = name.isNotEmpty
+                        ? name[0].toUpperCase()
+                        : 'U';
+                    return GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileScreen(),
+                        ),
                       ),
-                    ),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            initial,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                Builder(
+                  builder: (context) => IconButton(
+                    icon: const Icon(Icons.menu, color: Colors.white, size: 26),
+                    onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
                   ),
                 ),
-              );
-            },
-          ),
-          Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.menu, color: Colors.white, size: 26),
-              onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
-            ),
-          ),
-        ],
-      ),
+              ],
+            )
+          : null,
       endDrawer: const _AppDrawer(),
       body: _pages[_selectedIndex],
       bottomNavigationBar: _BottomNav(
@@ -214,7 +204,7 @@ class _BottomNav extends StatelessWidget {
       (Icons.home_rounded, 'Home'),
       (Icons.donut_large_rounded, 'Insights'),
       (Icons.currency_rupee_rounded, 'Savings'),
-      (Icons.person_rounded, 'Profile'),
+      (Icons.settings_rounded, 'Settings'),
     ];
 
     return Container(

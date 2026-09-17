@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'energy_service.dart';
 import 'kseb_billing_service.dart';
 
@@ -36,6 +37,47 @@ class DailySnapshotService {
     if (existing.exists) return;
 
     await _createSnapshot(uid: uid, date: today, logRef: logRef);
+  }
+
+  static Future<void> checkAndRollBillingCycle(String uid) async {
+    try {
+      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+
+      final snap = await userRef.get();
+      if (!snap.exists) return;
+
+      final data = snap.data()!;
+
+      final Timestamp? ts = data['billingStartDate'] as Timestamp?;
+      if (ts == null) return; // no billing date set yet — skip
+
+      DateTime cycleStart = ts.toDate();
+      final String billingCycle =
+          (data['billingCycle'] as String?) ?? '2 Month';
+      final int cycleDays = billingCycle == '1 Month' ? 30 : 60;
+
+      final DateTime today = DateTime.now();
+      DateTime cycleEnd = cycleStart.add(Duration(days: cycleDays));
+
+      // If still within the current cycle, nothing to do
+      if (today.isBefore(cycleEnd)) return;
+
+      // Roll forward until cycleStart is the most recent past start
+      while (today.isAfter(cycleStart.add(Duration(days: cycleDays))) ||
+          today.isAtSameMomentAs(cycleStart.add(Duration(days: cycleDays)))) {
+        cycleStart = cycleStart.add(Duration(days: cycleDays));
+      }
+
+      // Persist the new cycle start — logs untouched
+      await userRef.update({
+        'billingStartDate': Timestamp.fromDate(cycleStart),
+      });
+
+      debugPrint('BillingCycle rolled forward → new start: $cycleStart');
+    } catch (e) {
+      // Non-fatal — dashboard will still work with stale date
+      debugPrint('checkAndRollBillingCycle error: $e');
+    }
   }
 
   // ─────────────────────────────────────────────────────────────

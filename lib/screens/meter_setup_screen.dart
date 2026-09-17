@@ -25,7 +25,9 @@ class _MeterSetupScreenState extends State<MeterSetupScreen> {
   bool _isLoadingData = false; // pre-filling in edit mode
 
   final List<String> _tariffOptions = [
-    'Domestic',
+    'LT-1 (Domestic)',
+    'LT-7 (General Purpose)',
+
     'Commercial',
     'Industrial',
     'Agricultural',
@@ -63,7 +65,10 @@ class _MeterSetupScreenState extends State<MeterSetupScreen> {
       final data = doc.data() ?? {};
 
       setState(() {
-        _selectedTariff = data['tariff'] as String?;
+        // Migrate legacy 'Domestic' → 'LT-1 (Domestic)'
+        String? tariff = data['tariff'] as String?;
+        if (tariff == 'Domestic') tariff = 'LT-1 (Domestic)';
+        _selectedTariff = tariff;
         _selectedPurpose = data['purpose'] as String?;
         _billingCycle = (data['billingCycle'] as String?) ?? '2 Month';
         _phase = (data['phase'] as String?) ?? 'Single Phase';
@@ -216,21 +221,48 @@ class _MeterSetupScreenState extends State<MeterSetupScreen> {
                     // ── Header ───────────────────────────────────
                     Text(
                       widget.isEditMode
-                          ? 'Update Meter Settings'
-                          : 'Setup your Electricity Meter',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.isEditMode
                           ? 'Update your connection type and billing cycle'
                           : 'Tell us about your connection type and billing cycle',
                       style: const TextStyle(fontSize: 15, color: Colors.grey),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
+
+                    // ── Refer last bill banner ────────────────────
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF8E1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFFD54F)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.receipt_long_rounded,
+                            size: 18,
+                            color: Color(0xFFF57F17),
+                          ),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Refer your last KSEB bill for accurate tariff category, '
+                              'billing cycle, and cycle start date.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF5D4037),
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
 
                     // ── Tariff ───────────────────────────────────
                     const _FieldLabel(label: 'Tariff'),

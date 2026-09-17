@@ -404,10 +404,7 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
           backgroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
-          leading: IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          ),
+          automaticallyImplyLeading: false, // ← removes back button
           title: const Text(
             'My Appliances',
             style: TextStyle(
@@ -431,10 +428,7 @@ class _AppliancesScreenState extends State<AppliancesScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-        ),
+        automaticallyImplyLeading: false, // ← removes back button
         title: const Text(
           'My Appliances',
           style: TextStyle(
