@@ -125,3 +125,19 @@ pubspec.yaml
 analysis_options.yaml
 runner/
 flutter/
+firebase_options.dart
+# Flutter/Dart generated
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub/
+.pub-cache/
+
+# IDE
+.idea/
+.vscode/
+
+# Generated platform files
+**/Pods/
+**/.symlinks/
